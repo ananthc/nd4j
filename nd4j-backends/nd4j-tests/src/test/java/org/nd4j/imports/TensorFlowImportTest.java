@@ -15,10 +15,7 @@ import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.io.ClassPathResource;
 import org.nd4j.linalg.util.HashUtil;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.*;
 import java.util.List;
 
 import static org.junit.Assert.*;
@@ -123,8 +120,10 @@ public class TensorFlowImportTest {
 
     @Test
     public void testRandomMLP() throws Exception {
+
+        // https://gist.github.com/eraly/4304436d3261fbd9d9af39b96458e0e8
         Nd4j.create(1);
-        val tg = TensorFlowImport.importIntermediate(new ClassPathResource("tf_graphs/frozen_model.pb").getFile());
+        val tg = TensorFlowImport.importIntermediate(new File("/Users/susaneraly/SKYMIND/nd4j/nd4j-backends/nd4j-tests/src/test/resources/tf_graphs/frozen_model.pb"));
         assertTrue(tg.getVariableSpace().hasVariable("input"));
         assertTrue(tg.getVariableSpace().getVariable("input").isPlaceholder());
 
