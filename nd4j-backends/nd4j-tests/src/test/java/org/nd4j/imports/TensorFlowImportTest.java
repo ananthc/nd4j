@@ -4,12 +4,14 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Before;
 import org.junit.Test;
+import org.nd4j.autodiff.execution.NativeGraphExecutioner;
 import org.nd4j.autodiff.opstate.OpExecAction;
 import org.nd4j.autodiff.opstate.OpState;
 import org.nd4j.autodiff.samediff.SDVariable;
 import org.nd4j.autodiff.samediff.SameDiff;
 import org.nd4j.graph.intermediate.TIndex;
 import org.nd4j.imports.converters.TensorFlowMapper;
+import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.Op;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.io.ClassPathResource;
@@ -142,6 +144,30 @@ public class TensorFlowImportTest {
             dos.write(array, offset, array.length - offset);
         }
     }
+
+    @Test
+    public void testSimpleG00() throws Exception {
+
+        // https://gist.github.com/eraly/4304436d3261fbd9d9af39b96458e0e8
+        Nd4j.create(1);
+        val tg = TensorFlowImport.importIntermediate(new File("/Users/susaneraly/SKYMIND/TFImport/models/simpleg00/frozen_model.pb"));
+        val executioner = new NativeGraphExecutioner();
+        INDArray[] res = executioner.executeGraph(tg);
+
+        val buffer = tg.asFlatBuffers();
+        assertNotNull(buffer);
+
+        val offset = buffer.position();
+
+        log.info("Length: {}; Offset: {};", buffer.capacity(), offset);
+        val array = buffer.array();
+
+        try (val fos = new FileOutputStream("/Users/susaneraly/SKYMIND/libnd4j/tests_cpu/resources/frozen_model.fb"); val dos = new DataOutputStream(fos)) {
+            dos.write(array, offset, array.length - offset);
+        }
+
+    }
+
 
     @Test
     public void testIntermediate1() throws Exception {

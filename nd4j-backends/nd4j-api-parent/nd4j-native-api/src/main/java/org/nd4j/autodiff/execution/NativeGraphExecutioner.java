@@ -14,6 +14,7 @@ import org.nd4j.autodiff.samediff.SDGraph;
 import org.nd4j.autodiff.samediff.SameDiff;
 import org.nd4j.autodiff.samediff.SDVariable;
 import org.nd4j.graph.*;
+import org.nd4j.graph.intermediate.TGraph;
 import org.nd4j.linalg.api.memory.pointers.PagedPointer;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.Op;
@@ -202,6 +203,76 @@ public class NativeGraphExecutioner implements GraphExecutioner {
     @Override
     public ByteBuffer convertToFlatBuffers(SameDiff sd, ExecutorConfiguration configuration) {
         return convertToFlatBuffers(sd, configuration, new HashMap<Integer, Node>());
+    }
+
+    public INDArray[] executeGraph(TGraph tg) {
+        ByteBuffer buffer = tg.asFlatBuffers();
+        BytePointer bPtr = new BytePointer(buffer);
+
+        log.info("Buffer length: {}", buffer.limit());
+
+        Pointer res  = NativeOpsHolder.getInstance().getDeviceNativeOps().executeFlatGraphFloat(null, bPtr);
+
+        // FIXME: this is BAD
+        PagedPointer pagedPointer = new PagedPointer(res,1024 * 1024L);
+        FlatResult fr = FlatResult.getRootAsFlatResult(pagedPointer.asBytePointer().asByteBuffer());
+
+
+        log.info("VarMap: {}", tg.getSkipSet());
+
+        INDArray[] results = new INDArray[fr.variablesLength()];
+
+        for (int e = 0; e < fr.variablesLength(); e++) {
+            FlatVariable var = fr.variables(e);
+            log.info("Var received: id: {}; name: {}", var.id(), var.name());
+            float[] values = new float[var.valuesLength()];
+            int[] shape = new int[var.shapeLength()];
+
+            for (int i = 0; i < var.valuesLength(); i++) {
+                values[i] = var.values(i);
+            }
+
+            for (int i = 0; i < var.shapeLength(); i++) {
+                shape[i] = var.shape(i);
+            }
+
+            int[] _shape = new int[shape[0]];
+            for (int i = 0; i < _shape.length; i++) {
+                _shape[i] = shape[i+1];
+            }
+
+            char _order = shape[shape[0] * 2 + 4 - 1] == 99 ? 'c' : 'f';
+
+            INDArray val = Nd4j.create(values, _shape, _order, 0);
+            results[e] = val;
+
+            /* TODO: WHAT IS THIS
+            if (var.name() != null && sd.variableMap().containsKey(var.name())) {
+                //log.info("VarName: {}; Exists: {}; NDArrayInfo: {};", var.name(), sd.variableMap().containsKey(var.name()), sd.getVertexToArray().containsKey(var.name()));
+                sd.associateArrayWithVariable(val, sd.variableMap().get(var.name()));
+
+            } else {
+                int[] original = intermediate.get(var.id()).getOriginalOutput();
+                //log.info("Original id: {}; out: {}; out2: {}", original, sd.getVertexIdxToInfo().get(original), graph.getVariableForVertex(original));
+                if (sd.variableMap().get(sd.getGraph().getVariableForVertex(original[0]).getVarName()) != null) {
+                    sd.associateArrayWithVariable(val,sd.variableMap().get(sd.getGraph().getVariableForVertex(original[0]).getVarName()));
+                } else {
+                    SDVariable variable = SDVariable.builder()
+                            .varName(sd.getGraph().getVariableForVertex(original[0]).getVarName())
+                            .shape(val.shape())
+                            .sameDiff(sd)
+                            .build();
+
+                    sd.associateArrayWithVariable(val,variable);
+                    sd.addVariable(variable);
+                }
+            }
+            */
+        }
+
+
+        return results;
+
     }
 
     /**
